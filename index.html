@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>实时轨迹数据</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #data-container {
+            margin-bottom: 20px;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+        .container {
+            display: flex;
+            justify-content: flex-start; /* 将内容紧凑排列 */
+            align-items: center; /* 垂直居中对齐 */
+        }
+        .data-output {
+            margin-left: 10px; /* 调整间距，使内容靠近 */
+            padding: 10px;
+            border: 1px solid #000;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <h1>实时轨迹数据</h1>
+    <div class="container">
+        <!-- canvas 画布 -->
+        <canvas id="trajectoryCanvas" width="500" height="500"></canvas>
+        
+        <!-- 数据输出区域 -->
+        <div class="data-output">
+            <h2>轨迹信息</h2>
+            <div id="data-container"></div>
+
+            <h2>原始位置信息</h2>
+            <div id="position-container"></div>
+
+            <h2>原始方向信息</h2>
+            <div id="orientation-container"></div>
+        </div>
+    </div>
+
+    <script>
+        let canvas = document.getElementById('trajectoryCanvas');
+        let ctx = canvas.getContext('2d');
+        let trajectoryData = [];  // 用于存储轨迹数据
+
+        // 设定画布的宽高为500像素，实际空间为10m x 10m, 缩放比例
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        const maxRange = 5; // 实际空间的最大范围是-5米到5米
+        const scaleFactor = canvasWidth / (2 * maxRange); // 根据-5到5的范围设定缩放比例
+
+        function fetchData() {
+            console.log('Fetching data...');
+            fetch('http://8.138.29.91:8080/data', { cache: "no-cache" })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Fetched data:', data);
+                    const container = document.getElementById('data-container');
+                    const positionContainer = document.getElementById('position-container');
+                    const orientationContainer = document.getElementById('orientation-container');
+                    
+                    container.innerHTML = '';  // 清空之前的数据展示
+                    positionContainer.innerHTML = '';  // 清空原始位置信息
+                    orientationContainer.innerHTML = '';  // 清空原始方向信息
+
+                    // 显示计算后的轨迹信息
+                    const trajectoryInfo = `
+                        <p><strong>Trajectory X:</strong> ${data.trajectory.x.toFixed(2)}</p>
+                        <p><strong>Trajectory Y:</strong> ${data.trajectory.y.toFixed(2)}</p>
+                        <p><strong>Theta:</strong> ${data.trajectory.theta.toFixed(2)}</p>
+                    `;
+                    container.innerHTML = trajectoryInfo;
+
+                    // 显示原始位置信息
+                    const rawPositionInfo = `
+                        <p><strong>Position X:</strong> ${data.pose_data.position.x.toFixed(2)}</p>
+                        <p><strong>Position Y:</strong> ${data.pose_data.position.y.toFixed(2)}</p>
+                        <p><strong>Position Z:</strong> ${data.pose_data.position.z.toFixed(2)}</p>
+                    `;
+                    positionContainer.innerHTML = rawPositionInfo;
+
+                    // 显示原始方向信息
+                    const rawOrientationInfo = `
+                        <p><strong>Orientation X:</strong> ${data.pose_data.orientation.x.toFixed(2)}</p>
+                        <p><strong>Orientation Y:</strong> ${data.pose_data.orientation.y.toFixed(2)}</p>
+                        <p><strong>Orientation Z:</strong> ${data.pose_data.orientation.z.toFixed(2)}</p>
+                        <p><strong>Orientation W:</strong> ${data.pose_data.orientation.w.toFixed(2)}</p>
+                    `;
+                    orientationContainer.innerHTML = rawOrientationInfo;
+
+                    // 添加新的数据到轨迹数据中
+                    trajectoryData.push({ x: data.pose_data.position.x, y: data.pose_data.position.y });
+                    drawTrajectory();  // 更新轨迹图
+
+                    setTimeout(fetchData, 1000);  // 每1求一次数据
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    setTimeout(fetchData, 2000);  // 如果出错，2秒后重新尝试
+                });
+        }
+
+        // 绘制整个轨迹图，不只是绘制最后一段
+        // function drawTrajectory() { //画线
+        //     // 清空画布
+        //     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+        //     ctx.fillStyle = 'blue'; // 设置点的颜色
+
+        //     if (trajectoryData.length > 1) {
+        //         ctx.beginPath();
+        //         ctx.strokeStyle = 'blue';
+        //         ctx.lineWidth = 2;
+
+        //         for (let i = 0; i < trajectoryData.length - 1; i++) {
+        //             let previousPoint = trajectoryData[i];
+        //             let currentPoint = trajectoryData[i + 1];
+
+        //             // 将 -5 到 5 的坐标数据转换为 canvas 中的像素坐标
+        //             ctx.moveTo(
+        //                 (previousPoint.x + maxRange) * scaleFactor, 
+        //                 canvasHeight - (previousPoint.y + maxRange) * scaleFactor
+        //             );
+        //             ctx.lineTo(
+        //                 (currentPoint.x + maxRange) * scaleFactor, 
+        //                 canvasHeight - (currentPoint.y + maxRange) * scaleFactor
+        //             );
+        //         }
+
+        //         ctx.stroke();
+        //     }
+        // }
+        function drawTrajectory() { //画点
+            // 清空画布
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+            ctx.fillStyle = 'blue'; // 设置点的颜色
+
+            for (let i = 0; i < trajectoryData.length; i++) {
+                let point = trajectoryData[i];
+
+                // 将 -5 到 5 的坐标转换为 canvas 像素坐标
+                let x_pixel = (point.x + 5) * (canvasWidth / 10); // X坐标从 -5~5 转换为 0~500 的范围
+                let y_pixel = (5 - point.y) * (canvasHeight / 10); // Y坐标从 -5~5 转换为 0~500 的范围（Y 轴翻转）
+
+                // 绘制每个点（半径为 3）
+                ctx.beginPath();
+                ctx.arc(x_pixel, y_pixel, 3, 0, 2 * Math.PI); // 在像素坐标处绘制圆点
+                ctx.fill();
+            }
+        }
+
+
+        // 页面加载时开始数据获取
+        window.onload = fetchData;
+
+    </script>
+</body>
+</html>
