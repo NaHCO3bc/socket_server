@@ -1,9 +1,6 @@
 云服务器实例网址：
 https://ecs.console.aliyun.com/server/i-7xv0a02dki2rca2lxuyz/detail?regionId=cn-guangzhou&installDetailToken=1724898850590#/
-账号：13710942992
-密码：98106515cheng
 
- 
 连接终端方式
 终端用户名：root
 密码：i-7xv0a02dki2rca2lxuyz（实例的id，可以在实例详情那里复制）
