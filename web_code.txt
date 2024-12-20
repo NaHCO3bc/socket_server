@@ -7,3 +7,15 @@ https://ecs.console.aliyun.com/server/i-7xv0a02dki2rca2lxuyz/detail?regionId=cn-
 
 公网ip：8.138.29.91
 私有ip：172.20.32.144
+
+
+课设四信息（课设三的云服务器试用结束）：
+云服务器实例网址：
+https://console.huaweicloud.com/ecm/?agencyId=5458ac34239d45b8bf7ee80941716229&region=cn-north-4&locale=zh-cn#/ecs/manager/vmList
+
+连接终端方式
+终端用户名：root
+密码：Dynamicx!
+
+公网ip：120.46.61.21
+私有ip：192.168.0.166

@@ -9,7 +9,7 @@ def get_db_connection():
     connection = mysql.connector.connect(
         host='localhost',       
         user='debian-sys-maint',    
-        password='UVDtNMmYAmF1N5MR',       
+        password='SkrcGTjcUD720PCb',       
         database='pose'       
     )
     return connection
