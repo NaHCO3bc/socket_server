@@ -8,9 +8,10 @@ def save_to_mysql(pose_data):
     try:
         # 连接MySQL数据库
         connection = mysql.connector.connect(
+            #使用sudo cat /etc/mysql/debian.cnf命令查看
             host='localhost',       # 或者服务器的 IP 地址
             user='debian-sys-maint',     # 用户名
-            password='UVDtNMmYAmF1N5MR',       
+            password='SkrcGTjcUD720PCb',       
             database='pose'         # 数据库名称
         )
         cursor = connection.cursor()
