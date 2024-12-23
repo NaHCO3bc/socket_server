@@ -4,73 +4,128 @@
     <meta charset="UTF-8">
     <title>实时轨迹数据</title>
     <style>
+        /* 页面字体和样式设置 */
         body {
             font-family: Arial, sans-serif;
         }
+        /* 数据容器的样式 */
         #data-container {
             margin-bottom: 20px;
         }
+        /* 画布样式 */
         canvas {
             border: 1px solid black;
         }
+        /* 容器布局 */
         .container {
             display: flex;
-            justify-content: flex-start; /* 将内容紧凑排列 */
-            align-items: center; /* 垂直居中对齐 */
+            justify-content: flex-start;
+            align-items: flex-start;
         }
+        /* 数据输出区域的样式 */
         .data-output {
-            margin-left: 10px; /* 调整间距，使内容靠近 */
+            margin-left: 10px;
             padding: 10px;
             border: 1px solid #000;
             background-color: #f9f9f9;
+        }
+        /* 输入表单的样式 */
+        .input-form {
+            margin-left: 10px;
+            padding: 10px;
+            border: 1px solid #000;
+            background-color: #f9f9f9;
+        }
+        .input-form label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .input-form input {
+            margin-bottom: 10px;
+            padding: 5px;
+            width: 100px;
         }
     </style>
 </head>
 <body>
     <h1>实时轨迹数据</h1>
     <div class="container">
-        <!-- canvas 画布 -->
+        <!-- 轨迹绘制的画布 -->
         <canvas id="trajectoryCanvas" width="500" height="500"></canvas>
-        
         <!-- 数据输出区域 -->
         <div class="data-output">
             <h2>轨迹信息</h2>
             <div id="data-container"></div>
-
             <h2>原始位置信息</h2>
             <div id="position-container"></div>
-
             <h2>原始方向信息</h2>
             <div id="orientation-container"></div>
+        </div>
+        
+        <!-- 坐标输入表单 -->
+        <div class="input-form">
+            <h2>输入坐标</h2>
+            <form id="coordinate">
+                <label for="x">X 坐标:</label>
+                <input type="number" id="x" name="x" value="0" step="0.01">
+                <label for="y">Y 坐标:</label>
+                <input type="number" id="y" name="y" value="0" step="0.01">
+                <label for="z">Z 坐标:</label>
+                <input type="number" id="z" name="z" value="0" step="0.01">
+                <button type="submit" id="submitCoordinate">提交</button>
+            </form>
         </div>
     </div>
 
     <script>
+        // 获取画布元素并设置上下文，用于绘制轨迹
         let canvas = document.getElementById('trajectoryCanvas');
         let ctx = canvas.getContext('2d');
-        let trajectoryData = [];  // 用于存储轨迹数据
+        let trajectoryData = [];// 用于存储轨迹数据
+        let initialCoordinateSent = false;        // 标志位，确保初始化坐标只发送一次
 
-        // 设定画布的宽高为500像素，实际空间为10m x 10m, 缩放比例
+        // 设置画布的宽高为500像素，实际空间为10m x 10m，缩放比例
         const canvasWidth = canvas.width;
         const canvasHeight = canvas.height;
-        const maxRange = 5; // 实际空间的最大范围是-5米到5米
-        const scaleFactor = canvasWidth / (2 * maxRange); // 根据-5到5的范围设定缩放比例
+        const maxRange = 5;  // 实际空间范围5米
+        const scaleFactor = canvasWidth / (2 * maxRange);  // 缩放比例，确保数据能适配画布
 
+        // 获取实时数据的函数
         function fetchData() {
-            console.log('Fetching data...');
+            // 初始化坐标，只发送一次
+            if (!initialCoordinateSent){
+                const initialCoordinate = { x: 0, y: 0, z: 0 };
+                fetch('http://120.46.61.21:8080/coordinate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(initialCoordinate),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('初始化坐标成功', data);
+                    initialCoordinateSent = true;
+                })
+                .catch(error => {
+                    console.error('初始化坐标失败', error);
+                });
+            }
+
+            // 获取数据并更新前端显示
             fetch('http://120.46.61.21:8080/data', { cache: "no-cache" })
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Fetched data:', data);
+                    // 获取并更新数据显示容器
                     const container = document.getElementById('data-container');
                     const positionContainer = document.getElementById('position-container');
                     const orientationContainer = document.getElementById('orientation-container');
                     
-                    container.innerHTML = '';  // 清空之前的数据展示
-                    positionContainer.innerHTML = '';  // 清空原始位置信息
-                    orientationContainer.innerHTML = '';  // 清空原始方向信息
+                    container.innerHTML = '';
+                    positionContainer.innerHTML = '';
+                    orientationContainer.innerHTML = '';
 
-                    // 显示计算后的轨迹信息
+                    // 更新轨迹信息
                     const trajectoryInfo = `
                         <p><strong>Trajectory X:</strong> ${data.trajectory.x.toFixed(2)}</p>
                         <p><strong>Trajectory Y:</strong> ${data.trajectory.y.toFixed(2)}</p>
@@ -78,7 +133,7 @@
                     `;
                     container.innerHTML = trajectoryInfo;
 
-                    // 显示原始位置信息
+                    // 更新原始位置信息
                     const rawPositionInfo = `
                         <p><strong>Position X:</strong> ${data.pose_data.position.x.toFixed(2)}</p>
                         <p><strong>Position Y:</strong> ${data.pose_data.position.y.toFixed(2)}</p>
@@ -86,7 +141,7 @@
                     `;
                     positionContainer.innerHTML = rawPositionInfo;
 
-                    // 显示原始方向信息
+                    // 更新原始方向信息
                     const rawOrientationInfo = `
                         <p><strong>Orientation X:</strong> ${data.pose_data.orientation.x.toFixed(2)}</p>
                         <p><strong>Orientation Y:</strong> ${data.pose_data.orientation.y.toFixed(2)}</p>
@@ -95,48 +150,18 @@
                     `;
                     orientationContainer.innerHTML = rawOrientationInfo;
 
-                    // 添加新的数据到轨迹数据中
+                    // 将位置信息添加到轨迹数据中
                     trajectoryData.push({ x: data.pose_data.position.x, y: data.pose_data.position.y });
-                    drawTrajectory();  // 更新轨迹图
 
-                    setTimeout(fetchData, 1000);  // 每1求一次数据
+                    drawTrajectory();// 绘制轨迹
+                    setTimeout(fetchData, 1000);// 每1秒重新获取数据
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    setTimeout(fetchData, 2000);  // 如果出错，2秒后重新尝试
+                    setTimeout(fetchData, 2000);  // 如果出错，2秒后重试
                 });
         }
 
-        // 绘制整个轨迹图，不只是绘制最后一段
-        // function drawTrajectory() { //画线
-        //     // 清空画布
-        //     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-
-        //     ctx.fillStyle = 'blue'; // 设置点的颜色
-
-        //     if (trajectoryData.length > 1) {
-        //         ctx.beginPath();
-        //         ctx.strokeStyle = 'blue';
-        //         ctx.lineWidth = 2;
-
-        //         for (let i = 0; i < trajectoryData.length - 1; i++) {
-        //             let previousPoint = trajectoryData[i];
-        //             let currentPoint = trajectoryData[i + 1];
-
-        //             // 将 -5 到 5 的坐标数据转换为 canvas 中的像素坐标
-        //             ctx.moveTo(
-        //                 (previousPoint.x + maxRange) * scaleFactor, 
-        //                 canvasHeight - (previousPoint.y + maxRange) * scaleFactor
-        //             );
-        //             ctx.lineTo(
-        //                 (currentPoint.x + maxRange) * scaleFactor, 
-        //                 canvasHeight - (currentPoint.y + maxRange) * scaleFactor
-        //             );
-        //         }
-
-        //         ctx.stroke();
-        //     }
-        // }
         function drawTrajectory() { //画点
             // 清空画布
             ctx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -157,10 +182,35 @@
             }
         }
 
+        // 处理坐标提交的事件
+        document.getElementById('coordinate').addEventListener('submit', function(event) {
+            event.preventDefault();  // 防止表单默认提交
+            const x = parseFloat(document.getElementById('x').value);
+            const y = parseFloat(document.getElementById('y').value);
+            const z = parseFloat(document.getElementById('z').value);
 
-        // 页面加载时开始数据获取
+            // 提交坐标到后端
+            fetch('http://120.46.61.21:8080/coordinate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ x, y, z }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('坐标提交成功');
+                console.log('Response:', data);
+            })
+            .catch(error => {
+                alert('坐标提交失败');
+                console.error('Error:', error);
+            });
+        });
+
+        // 页面加载时开始获取数据
         window.onload = fetchData;
-
     </script>
 </body>
 </html>
+

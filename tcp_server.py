@@ -51,24 +51,6 @@ def dead_reckoning(prev_pose, current_pose):
 
     return new_x, new_y, new_theta
 
-# def dead_reckoning(prev_pose, velocity, angular_velocity, delta_t):
-#     # 提取前一时刻的位置和方向
-#     x_prev = prev_pose['position']['x']
-#     y_prev = prev_pose['position']['y']
-#     theta_prev = prev_pose['orientation']['theta']  # 小车的偏航角（方向）
-    
-#     # 计算当前时刻的距离增量（速度 * 时间）
-#     delta_distance = velocity * delta_t
-    
-#     # 计算新的位置
-#     new_x = x_prev + delta_distance * cos(theta_prev)
-#     new_y = y_prev + delta_distance * sin(theta_prev)
-    
-#     # 计算新的方向（角度）通过角速度积分
-#     new_theta = theta_prev + angular_velocity * delta_t
-
-#     return new_x, new_y, new_theta
-
 # 定义 JSON HTTP 响应
 def http_response(data):
     response = 'HTTP/1.1 200 OK\r\n'
@@ -100,6 +82,17 @@ def html_response():
         response += 'Content-Length: 39\r\n\r\n'
         response += '404 Not Found: The requested file was not found on the server.'
     return response
+
+# 存储坐标数据到数据库
+def store_coordinates(x, y, z):
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    query = "REPLACE INTO coordinate (id, x, y, z, timestamp) VALUES (1, %s, %s, %s, %s)"
+    cursor.execute(query, (x, y, z, timestamp))
+    connection.commit()
+    cursor.close()
+    connection.close()
 
 # 设置 TCP HTTP 服务器
 def tcp_http_server():
@@ -162,6 +155,32 @@ def tcp_http_server():
                 response = http_response(json.dumps(response_data, cls=DateTimeEncoder))
                 client_socket.sendall(response.encode('utf-8'))
 
+        elif 'POST /coordinate' in request_str:
+            # 提取 JSON 数据
+            try:
+                start_index = request_str.index('\r\n\r\n') + 4
+                json_data = request_str[start_index:]
+                data = json.loads(json_data)
+            
+                # 打印接收到的数据以调试
+                print(f"Received coordinates: {data}")    
+
+                # 存储坐标数据
+                x = data['x']
+                y = data['y']
+                z = data['z']
+                store_coordinates(x, y, z)
+
+                # 发送响应
+                response_data = {'status': 'success'}
+                response = http_response(json.dumps(response_data, cls=DateTimeEncoder))
+                client_socket.sendall(response.encode('utf-8'))
+
+            except (ValueError, KeyError) as e:
+                response_data = {'status': 'error', 'message': 'Invalid JSON or missing data'}
+                response = http_response(json.dumps(response_data, cls=DateTimeEncoder))
+                client_socket.sendall(response.encode('utf-8'))
+
         elif 'GET /' in request_str:  # 处理根路径请求，返回 HTML 文件
             response = html_response()
             client_socket.sendall(response.encode('utf-8'))
@@ -177,3 +196,4 @@ def tcp_http_server():
 
 if __name__ == '__main__':
     tcp_http_server()
+
