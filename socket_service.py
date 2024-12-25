@@ -77,6 +77,46 @@ def save_and_publish_data(data):
     except json.JSONDecodeError as e:
         print(f"JSON decode error: {e}")
 
+def get_coordinate():
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        cursor.execute("SELECT * FROM coordinate WHERE id = 1")
+        goal = cursor.fetchone()
+
+        if goal:
+            updated = goal[4]
+            if updated == 1 :
+                cursor.execute("UPDATE coordinate SET updated = 0 WHERE id = 1")
+                connection.commit()
+                cursor.close()
+                connection.close()
+                print("Update goal data.")
+                return goal
+            else:
+                cursor.close()
+                connection.close()
+                return None
+
+    except mysql.connector.Error as err:
+        print(f"Error: {err}")
+        return None
+
+def send_goal_to_robot(data):
+    host = '59.41.21.252'  # 小车端的 IP 地址
+    port = 5000  # 小车端的端口号
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.connect((host, port))
+            # 将坐标数据转换为 JSON 格式
+            json_data = json.dumps(data)
+            s.sendall(json_data.encode('utf-8'))  # 发送数据到小车端
+            print(f"Sent data: {json_data}")
+        except Exception as e:
+            print(f"Error while sending data: {e}")
+
 def main():
     # 创建一个 socket 对象
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -99,11 +139,18 @@ def main():
         # 建立客户端连接
         client_socket, addr = server_socket.accept()
         print(f"Got connection from {addr}")
+        print("If you use the function of publishing coordinates on the front end, please first confirm that the IP address of the car terminal is correct")
 
         while True:
             try:
                 # 接收数据
                 data = client_socket.recv(1024).decode('utf-8')
+                goal = get_coordinate()
+                if goal:
+                    # 发送数据给小车
+                    send_goal_to_robot(goal)
+                    print("Send goal.")
+
                 if not data:
                     break
 
