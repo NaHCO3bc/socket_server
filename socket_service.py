@@ -4,37 +4,57 @@ import rospy
 import mysql.connector
 from geometry_msgs.msg import Pose
 
-def save_to_mysql(pose_data):
+# 连接 MySQL 数据库
+def get_db_connection():
+    connection = mysql.connector.connect(
+        #使用sudo cat /etc/mysql/debian.cnf命令查看
+        host='localhost',       
+        user='debian-sys-maint',    
+        password='SkrcGTjcUD720PCb',       
+        database='pose'       
+    )
+    return connection
+
+def save_odom_to_mysql(pose_data):
     try:
         # 连接MySQL数据库
-        connection = mysql.connector.connect(
-            #使用sudo cat /etc/mysql/debian.cnf命令查看
-            host='localhost',       # 或者服务器的 IP 地址
-            user='debian-sys-maint',     # 用户名
-            password='SkrcGTjcUD720PCb',       
-            database='pose'         # 数据库名称
-        )
+        connection = get_db_connection()
         cursor = connection.cursor()
 
         #  # 使用 REPLACE INTO 来插入或更新数据
         sql = """
-        REPLACE INTO pose_data (id, position_x, position_y, position_z, orientation_x, orientation_y, orientation_z, orientation_w)
+        REPLACE INTO odom_pose (id, position_x, position_y, position_z, orientation_x, orientation_y, orientation_z, orientation_w)
         VALUES (1, %s, %s, %s, %s, %s, %s, %s)
         """
         val = (
             pose_data['position']['x'], pose_data['position']['y'], pose_data['position']['z'],
             pose_data['orientation']['x'], pose_data['orientation']['y'], pose_data['orientation']['z'], pose_data['orientation']['w']
         )
-        
-        # 使用 INSERT INTO 来插入新数据
-        # sql = """
-        # INSERT INTO pose_data (position_x, position_y, position_z, orientation_x, orientation_y, orientation_z, orientation_w)
-        # VALUES (%s, %s, %s, %s, %s, %s, %s)
-        # """
-        # val = (
-        #     pose_data['position']['x'], pose_data['position']['y'], pose_data['position']['z'],
-        #     pose_data['orientation']['x'], pose_data['orientation']['y'], pose_data['orientation']['z'], pose_data['orientation']['w']
-        # )
+        cursor.execute(sql, val)
+        connection.commit()
+
+    except mysql.connector.Error as err:
+        rospy.logerr(f"MySQL error: {err}")
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+def save_amcl_to_mysql(pose_data):
+    try:
+        # 连接MySQL数据库
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        #  # 使用 REPLACE INTO 来插入或更新数据
+        sql = """
+        REPLACE INTO amcl_pose (id, position_x, position_y, position_z, orientation_x, orientation_y, orientation_z, orientation_w)
+        VALUES (1, %s, %s, %s, %s, %s, %s, %s)
+        """
+        val = (
+            pose_data['position']['x'], pose_data['position']['y'], pose_data['position']['z'],
+            pose_data['orientation']['x'], pose_data['orientation']['y'], pose_data['orientation']['z'], pose_data['orientation']['w']
+        )
         cursor.execute(sql, val)
         connection.commit()
 
@@ -49,27 +69,11 @@ def save_and_publish_data(data):
     try:
         # 处理接收到的数据
         pose_data = json.loads(data)
-        save_to_mysql(pose_data)
-
-        #print(f"data: {pose_data}")
+        if pose_data.get("type")=="odom_pose":
+            save_odom_to_mysql(pose_data)
+        if pose_data.get("type")=="amcl_pose":
+            save_amcl_to_mysql(pose_data)        
         
-        # 发布到 ROS 话题
-        pub = rospy.Publisher('/pose', Pose, queue_size=10)
-        rospy.init_node('pose_publisher_node', anonymous=True)
-        rate = rospy.Rate(10)  # 10 Hz
-
-        pose_msg = Pose()
-        pose_msg.position.x = pose_data.get('position', {}).get('x', 0)
-        pose_msg.position.y = pose_data.get('position', {}).get('y', 0)
-        pose_msg.position.z = pose_data.get('position', {}).get('z', 0)
-        pose_msg.orientation.x = pose_data.get('orientation', {}).get('x', 0)
-        pose_msg.orientation.y = pose_data.get('orientation', {}).get('y', 0)
-        pose_msg.orientation.z = pose_data.get('orientation', {}).get('z', 0)
-        pose_msg.orientation.w = pose_data.get('orientation', {}).get('w', 1)
-
-        #rospy.loginfo(f"Publishing pose: {pose_msg}")
-        pub.publish(pose_msg)
-        rate.sleep()
     except json.JSONDecodeError as e:
         print(f"JSON decode error: {e}")
 
@@ -127,3 +131,4 @@ if __name__ == '__main__':
         main()
     except Exception as e:
         print(f"Unexpected error: {e}")
+

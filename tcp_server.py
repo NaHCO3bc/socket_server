@@ -22,21 +22,38 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
 
 # 从 MySQL 数据库获取所有的位置信息和姿态数据
-def fetch_pose_data():
+def fetch_odom_pose_data():
     connection = get_db_connection()
     cursor = connection.cursor()
-    cursor.execute("SELECT * FROM pose_data ORDER BY id DESC LIMIT 1;")  # 获取所有数据，按 ID 升序排列
+    cursor.execute("SELECT * FROM odom_pose ORDER BY id DESC LIMIT 1;")  # 获取所有数据，按 ID 升序排列
     row = cursor.fetchone()
     cursor.close()
     connection.close()
     
     if row:
-        pose_data = {
+        odom_pose = {
             'position': {'x': row[1], 'y': row[2], 'z': row[3]},
             'orientation': {'x': row[4], 'y': row[5], 'z': row[6], 'w': row[7]},
             'timestamp': row[8]  # 添加时间戳
         }
-        return pose_data
+        return odom_pose
+    return None
+
+def fetch_amcl_pose_data():
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM amcl_pose ORDER BY id DESC LIMIT 1;")  # 获取所有数据，按 ID 升序排列
+    row = cursor.fetchone()
+    cursor.close()
+    connection.close()
+    
+    if row:
+        amcl_pose = {
+            'position': {'x': row[1], 'y': row[2], 'z': row[3]},
+            'orientation': {'x': row[4], 'y': row[5], 'z': row[6], 'w': row[7]},
+            'timestamp': row[8]  # 添加时间戳
+        }
+        return amcl_pose
     return None
 
 # 使用航位推算计算轨迹
@@ -125,12 +142,12 @@ def tcp_http_server():
 
         elif 'GET /data' in request_str:
             # 获取MySQL 数据
-            current_pose = fetch_pose_data()
-
+            odom_pose = fetch_odom_pose_data()
+            amcl_pose = fetch_amcl_pose_data()
             # 如果有之前的位置信息，计算轨迹
-            if current_pose:
+            if odom_pose:
                 if prev_pose:
-                    new_x, new_y, new_theta = dead_reckoning(prev_pose, current_pose)
+                    new_x, new_y, new_theta = dead_reckoning(prev_pose, odom_pose)
                     trajectory = {
                         'x': new_x,
                         'y': new_y,
@@ -138,17 +155,19 @@ def tcp_http_server():
                     }
                 else:
                     trajectory = {
-                        'x': current_pose['position']['x'],
-                        'y': current_pose['position']['y'],
-                        'theta': current_pose['orientation']['z']
+                        'x': odom_pose['position']['x'],
+                        'y': odom_pose['position']['y'],
+                        'theta': odom_pose['orientation']['z']
                     }
 
-                prev_pose = current_pose  # 更新上一帧数据
+                prev_pose = odom_pose  # 更新上一帧数据
+                prev_amcl_pose = amcl_pose  # 更新上一帧数据
 
                 # 构造响应数据，包含所有 pose 数据和计算的轨迹
                 response_data = {
-                    'pose_data': current_pose,  # 原始的 pose 数据
-                    'trajectory': trajectory    # 计算的轨迹数据
+                    'odom_pose': odom_pose,  # 原始的 pose 数据
+                    'trajectory': trajectory,    # 计算的轨迹数据
+                    'amcl_pose': amcl_pose,  # 原始的 pose 数据
                 }
 
                 # 发送 HTTP 响应

@@ -22,6 +22,10 @@
             justify-content: flex-start;
             align-items: flex-start;
         }
+        .note {
+        margin-top: 10px; /* 给备注添加上边距 */
+        text-align: left; /* 使备注居中 */
+        } 
         /* 数据输出区域的样式 */
         .data-output {
             margin-left: 10px;
@@ -52,16 +56,25 @@
     <div class="container">
         <!-- 轨迹绘制的画布 -->
         <canvas id="trajectoryCanvas" width="500" height="500"></canvas>
+
         <!-- 数据输出区域 -->
         <div class="data-output">
-            <h2>轨迹信息</h2>
+            <h2>odom轨迹信息</h2>
             <div id="data-container"></div>
             <h2>原始位置信息</h2>
             <div id="position-container"></div>
             <h2>原始方向信息</h2>
             <div id="orientation-container"></div>
         </div>
-        
+
+        <div class="data-output">
+            <h2>amcl_pose信息</h2>
+            <h2>位置信息</h2>
+            <div id="amcl-position-container"></div>
+            <h2>方向信息</h2>
+            <div id="amcl-orientation-container"></div>
+        </div>
+
         <!-- 坐标输入表单 -->
         <div class="input-form">
             <h2>输入坐标</h2>
@@ -76,12 +89,16 @@
             </form>
         </div>
     </div>
+    <div class="note">
+        <p>备注：此画布显示实时轨迹数据，蓝色为odom数据，红色为amcl_pose数据。</p>
+    </div>
 
     <script>
         // 获取画布元素并设置上下文，用于绘制轨迹
         let canvas = document.getElementById('trajectoryCanvas');
         let ctx = canvas.getContext('2d');
         let trajectoryData = [];// 用于存储轨迹数据
+        let amclPoseData = [];
         let initialCoordinateSent = false;        // 标志位，确保初始化坐标只发送一次
 
         // 设置画布的宽高为500像素，实际空间为10m x 10m，缩放比例
@@ -117,13 +134,19 @@
                 .then(response => response.json())
                 .then(data => {
                     // 获取并更新数据显示容器
-                    const container = document.getElementById('data-container');
-                    const positionContainer = document.getElementById('position-container');
-                    const orientationContainer = document.getElementById('orientation-container');
+                    const odomContainer = document.getElementById('data-container');
+                    const odomPositionContainer = document.getElementById('position-container');
+                    const odomOrientationContainer = document.getElementById('orientation-container');
+
+                    const amclPositionContainer = document.getElementById('amcl-position-container');
+                    const amclOrientationContainer = document.getElementById('amcl-orientation-container');
                     
-                    container.innerHTML = '';
-                    positionContainer.innerHTML = '';
-                    orientationContainer.innerHTML = '';
+                    odomContainer.innerHTML = '';
+
+                    odomPositionContainer.innerHTML = '';
+                    amclPositionContainer.innerHTML = '';
+                    odomOrientationContainer.innerHTML = '';
+                    amclOrientationContainer.innerHTML = '';
 
                     // 更新轨迹信息
                     const trajectoryInfo = `
@@ -131,27 +154,45 @@
                         <p><strong>Trajectory Y:</strong> ${data.trajectory.y.toFixed(2)}</p>
                         <p><strong>Theta:</strong> ${data.trajectory.theta.toFixed(2)}</p>
                     `;
-                    container.innerHTML = trajectoryInfo;
+                    odomContainer.innerHTML = trajectoryInfo;
 
                     // 更新原始位置信息
                     const rawPositionInfo = `
-                        <p><strong>Position X:</strong> ${data.pose_data.position.x.toFixed(2)}</p>
-                        <p><strong>Position Y:</strong> ${data.pose_data.position.y.toFixed(2)}</p>
-                        <p><strong>Position Z:</strong> ${data.pose_data.position.z.toFixed(2)}</p>
+                        <p><strong>Position X:</strong> ${data.odom_pose.position.x.toFixed(2)}</p>
+                        <p><strong>Position Y:</strong> ${data.odom_pose.position.y.toFixed(2)}</p>
+                        <p><strong>Position Z:</strong> ${data.odom_pose.position.z.toFixed(2)}</p>
                     `;
-                    positionContainer.innerHTML = rawPositionInfo;
+                    odomPositionContainer.innerHTML = rawPositionInfo;
 
                     // 更新原始方向信息
                     const rawOrientationInfo = `
-                        <p><strong>Orientation X:</strong> ${data.pose_data.orientation.x.toFixed(2)}</p>
-                        <p><strong>Orientation Y:</strong> ${data.pose_data.orientation.y.toFixed(2)}</p>
-                        <p><strong>Orientation Z:</strong> ${data.pose_data.orientation.z.toFixed(2)}</p>
-                        <p><strong>Orientation W:</strong> ${data.pose_data.orientation.w.toFixed(2)}</p>
+                        <p><strong>Orientation X:</strong> ${data.odom_pose.orientation.x.toFixed(2)}</p>
+                        <p><strong>Orientation Y:</strong> ${data.odom_pose.orientation.y.toFixed(2)}</p>
+                        <p><strong>Orientation Z:</strong> ${data.odom_pose.orientation.z.toFixed(2)}</p>
+                        <p><strong>Orientation W:</strong> ${data.odom_pose.orientation.w.toFixed(2)}</p>
                     `;
-                    orientationContainer.innerHTML = rawOrientationInfo;
+                    odomOrientationContainer.innerHTML = rawOrientationInfo;
+
+                    // 更新amcl位置信息
+                    const amclPositionInfo = `
+                        <p><strong>Position X:</strong> ${data.amcl_pose.position.x.toFixed(2)}</p>
+                        <p><strong>Position Y:</strong> ${data.amcl_pose.position.y.toFixed(2)}</p>
+                        <p><strong>Position Z:</strong> ${data.amcl_pose.position.z.toFixed(2)}</p>
+                    `;
+                    amclPositionContainer.innerHTML = amclPositionInfo;
+
+                    // 更新amcl方向信息
+                    const amclOrientationInfo = `
+                        <p><strong>Orientation X:</strong> ${data.amcl_pose.orientation.x.toFixed(2)}</p>
+                        <p><strong>Orientation Y:</strong> ${data.amcl_pose.orientation.y.toFixed(2)}</p>
+                        <p><strong>Orientation Z:</strong> ${data.amcl_pose.orientation.z.toFixed(2)}</p>
+                        <p><strong>Orientation W:</strong> ${data.amcl_pose.orientation.w.toFixed(2)}</p>
+                    `;
+                    amclOrientationContainer.innerHTML = amclOrientationInfo;
 
                     // 将位置信息添加到轨迹数据中
-                    trajectoryData.push({ x: data.pose_data.position.x, y: data.pose_data.position.y });
+                    trajectoryData.push({ x: data.odom_pose.position.x, y: data.odom_pose.position.y });
+                    amclPoseData.push({ x: data.amcl_pose.position.x, y: data.amcl_pose.position.y });
 
                     drawTrajectory();// 绘制轨迹
                     setTimeout(fetchData, 1000);// 每1秒重新获取数据
@@ -159,7 +200,7 @@
                 .catch(error => {
                     console.error('Error:', error);
                     setTimeout(fetchData, 2000);  // 如果出错，2秒后重试
-                });
+                });            
         }
 
         function drawTrajectory() { //画点
@@ -175,6 +216,32 @@
                 let x_pixel = (point.x + 5) * (canvasWidth / 10); // X坐标从 -5~5 转换为 0~500 的范围
                 let y_pixel = (5 - point.y) * (canvasHeight / 10); // Y坐标从 -5~5 转换为 0~500 的范围（Y 轴翻转）
 
+                if (x_pixel < 0 || x_pixel > canvasWidth || y_pixel < 0 || y_pixel > canvasHeight) {
+                    console.log(`Odom Point ${i} is out of bounds!`);
+                }
+                // 绘制每个点（半径为 3）
+                ctx.beginPath();
+                ctx.arc(x_pixel, y_pixel, 3, 0, 2 * Math.PI); // 在像素坐标处绘制圆点
+                ctx.fill();
+            }
+
+            // 画 Amcl 数据的红色点
+            ctx.fillStyle = 'red'; // 设置点的颜色
+            for (let i = 0; i < amclPoseData.length; i++) {
+                let point = amclPoseData[i];
+
+                // // 将 -5 到 5 的坐标转换为 canvas 像素坐标
+                let x_pixel = (point.x + 5) * (canvasWidth / 10); // X坐标从 -5~5 转换为 0~500 的范围
+                let y_pixel = (5 - point.y) * (canvasHeight / 10); // Y坐标从 -5~5 转换为 0~500 的范围（Y 轴翻转）
+
+                //用于测试，上方的才是实际范围的代码
+                // 假设 x 和 y 坐标的实际范围是 -10 到 10
+                // let x_pixel = (point.x + 10) * (canvasWidth / 20);  // 将 -10~10 的坐标范围映射到 0~500
+                // let y_pixel = (10 - point.y) * (canvasHeight / 20);  // 将 -10~10 的坐标范围映射到 0~500
+
+                if (x_pixel < 0 || x_pixel > canvasWidth || y_pixel < 0 || y_pixel > canvasHeight) {
+                    console.log(`AMCL Point ${i} is out of bounds!`);
+                }
                 // 绘制每个点（半径为 3）
                 ctx.beginPath();
                 ctx.arc(x_pixel, y_pixel, 3, 0, 2 * Math.PI); // 在像素坐标处绘制圆点
