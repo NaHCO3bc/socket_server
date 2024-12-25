@@ -111,7 +111,7 @@
         function fetchData() {
             // 初始化坐标，只发送一次
             if (!initialCoordinateSent){
-                const initialCoordinate = { x: 0, y: 0, z: 0 };
+                const initialCoordinate = { x: 0, y: 0, z: 0, isInitial: true };
                 fetch('http://120.46.61.21:8080/coordinate', {
                     method: 'POST',
                     headers: {
@@ -255,14 +255,14 @@
             const x = parseFloat(document.getElementById('x').value);
             const y = parseFloat(document.getElementById('y').value);
             const z = parseFloat(document.getElementById('z').value);
-
+            const isInitial = false;
             // 提交坐标到后端
             fetch('http://120.46.61.21:8080/coordinate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ x, y, z }),
+                body: JSON.stringify({ x, y, z, isInitial }),
             })
             .then(response => response.json())
             .then(data => {

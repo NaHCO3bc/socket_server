@@ -101,11 +101,14 @@ def html_response():
     return response
 
 # 存储坐标数据到数据库
-def store_coordinates(x, y, z):
+def store_coordinates(x, y, z, isInitial):
     connection = get_db_connection()
     cursor = connection.cursor()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    query = "REPLACE INTO coordinate (id, x, y, z, timestamp) VALUES (1, %s, %s, %s, %s)"
+    if isInitial:
+        query = "REPLACE INTO coordinate (id, x, y, z, updated, timestamp) VALUES (1, %s, %s, %s, 0, %s)"
+    else:
+        query = "REPLACE INTO coordinate (id, x, y, z, updated, timestamp) VALUES (1, %s, %s, %s, 1, %s)"
     cursor.execute(query, (x, y, z, timestamp))
     connection.commit()
     cursor.close()
@@ -188,7 +191,8 @@ def tcp_http_server():
                 x = data['x']
                 y = data['y']
                 z = data['z']
-                store_coordinates(x, y, z)
+                isInitial = data['isInitial']
+                store_coordinates(x, y, z, isInitial)
 
                 # 发送响应
                 response_data = {'status': 'success'}
