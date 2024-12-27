@@ -104,13 +104,14 @@ def get_coordinate():
         return None
 
 def send_goal_to_robot(data):
-    host = '59.41.21.252'  # 小车端的 IP 地址
-    port = 5000  # 小车端的端口号
+    host = '59.41.23.132'  # 小车端的 IP 地址
+    port = 50000  # 小车端的端口号
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
             s.connect((host, port))
             # 将坐标数据转换为 JSON 格式
+            data["type"] = "goal"            
             json_data = json.dumps(data)
             s.sendall(json_data.encode('utf-8'))  # 发送数据到小车端
             print(f"Sent data: {json_data}")
@@ -146,6 +147,7 @@ def main():
                 # 接收数据
                 data = client_socket.recv(1024).decode('utf-8')
                 goal = get_coordinate()
+                
                 if goal:
                     # 发送数据给小车
                     send_goal_to_robot(goal)
