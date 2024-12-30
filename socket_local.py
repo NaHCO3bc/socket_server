@@ -222,16 +222,17 @@ class ROSToServer:
     def update_goal_position(self, goal_data):
         """处理从服务器接收到的目标数据并发布目标位姿"""
         goal_pose = Pose()
-        goal_pose.position.x = goal_data["position"]["x"]
-        goal_pose.position.y = goal_data["position"]["y"]
-        goal_pose.position.z = goal_data["position"]["z"]
-        goal_pose.orientation.x = goal_data["orientation"]["x"]
-        goal_pose.orientation.y = goal_data["orientation"]["y"]
-        goal_pose.orientation.z = goal_data["orientation"]["z"]
-        goal_pose.orientation.w = goal_data["orientation"]["w"]
+        goal_pose.position.x = goal_data["x"]
+        goal_pose.position.y = goal_data["y"]
+        goal_pose.position.z = goal_data["z"]
+        goal_pose.orientation.x = 0.0
+        goal_pose.orientation.y = 0.0
+        goal_pose.orientation.z = 0.0
+        goal_pose.orientation.w = 1.0
 
         self.goal_publisher.publish(goal_pose)
         rospy.loginfo(f"Goal updated: {goal_pose}")
+
 
 if __name__ == '__main__':
     try:

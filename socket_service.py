@@ -101,22 +101,17 @@ def get_coordinate():
 
     except mysql.connector.Error as err:
         print(f"Error: {err}")
-        return None
+        return None 
 
-def send_goal_to_robot(data):
-    host = '59.41.23.132'  # 小车端的 IP 地址
-    port = 50000  # 小车端的端口号
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.connect((host, port))
-            # 将坐标数据转换为 JSON 格式
-            data["type"] = "goal"            
-            json_data = json.dumps(data)
-            s.sendall(json_data.encode('utf-8'))  # 发送数据到小车端
-            print(f"Sent data: {json_data}")
-        except Exception as e:
-            print(f"Error while sending data: {e}")
+def send_goal_to_robot(data, client_socket):
+    try:
+        # 将坐标数据转换为 JSON 格式    
+        data["type"] = "goal"
+        json_data = json.dumps(data)
+        client_socket.sendall(json_data.encode('utf-8'))  # 使用已建立的连接发送数据
+        print(f"Sent data: {json_data}")
+    except Exception as e:
+        print(f"Error while sending data: {e}")
 
 def main():
     # 创建一个 socket 对象
@@ -140,21 +135,25 @@ def main():
         # 建立客户端连接
         client_socket, addr = server_socket.accept()
         print(f"Got connection from {addr}")
-        print("If you use the function of publishing coordinates on the front end, please first confirm that the IP address of the car terminal is correct")
 
         while True:
             try:
                 # 接收数据
                 data = client_socket.recv(1024).decode('utf-8')
-                goal = get_coordinate()
-                
-                if goal:
-                    # 发送数据给小车
-                    send_goal_to_robot(goal)
-                    print("Send goal.")
-
-                if not data:
+                if not data:  # 检查是否断开连接
+                    print(f"Connection closed by {addr}")
                     break
+                
+                # 获取数据库中的坐标信息
+                goal = get_coordinate()
+                if goal:
+                    # 将坐标信息发送给小车端
+                    goal_data = {
+                        "x": goal[1],
+                        "y": goal[2],
+                        "z": goal[3]
+                    }
+                    send_goal_to_robot(goal_data, client_socket)  # 使用已连接的 socket 发送数据
 
                 # 将接收到的数据添加到缓冲区
                 buffer += data
