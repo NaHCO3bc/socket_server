@@ -4,37 +4,57 @@ import rospy
 import mysql.connector
 from geometry_msgs.msg import Pose
 
-def save_to_mysql(pose_data):
+# 连接 MySQL 数据库
+def get_db_connection():
+    connection = mysql.connector.connect(
+        #使用sudo cat /etc/mysql/debian.cnf命令查看
+        host='localhost',       
+        user='debian-sys-maint',    
+        password='SkrcGTjcUD720PCb',       
+        database='pose'       
+    )
+    return connection
+
+def save_odom_to_mysql(pose_data):
     try:
         # 连接MySQL数据库
-        connection = mysql.connector.connect(
-            #使用sudo cat /etc/mysql/debian.cnf命令查看
-            host='localhost',       # 或者服务器的 IP 地址
-            user='debian-sys-maint',     # 用户名
-            password='SkrcGTjcUD720PCb',       
-            database='pose'         # 数据库名称
-        )
+        connection = get_db_connection()
         cursor = connection.cursor()
 
         #  # 使用 REPLACE INTO 来插入或更新数据
         sql = """
-        REPLACE INTO pose_data (id, position_x, position_y, position_z, orientation_x, orientation_y, orientation_z, orientation_w)
+        REPLACE INTO odom_pose (id, position_x, position_y, position_z, orientation_x, orientation_y, orientation_z, orientation_w)
         VALUES (1, %s, %s, %s, %s, %s, %s, %s)
         """
         val = (
             pose_data['position']['x'], pose_data['position']['y'], pose_data['position']['z'],
             pose_data['orientation']['x'], pose_data['orientation']['y'], pose_data['orientation']['z'], pose_data['orientation']['w']
         )
-        
-        # 使用 INSERT INTO 来插入新数据
-        # sql = """
-        # INSERT INTO pose_data (position_x, position_y, position_z, orientation_x, orientation_y, orientation_z, orientation_w)
-        # VALUES (%s, %s, %s, %s, %s, %s, %s)
-        # """
-        # val = (
-        #     pose_data['position']['x'], pose_data['position']['y'], pose_data['position']['z'],
-        #     pose_data['orientation']['x'], pose_data['orientation']['y'], pose_data['orientation']['z'], pose_data['orientation']['w']
-        # )
+        cursor.execute(sql, val)
+        connection.commit()
+
+    except mysql.connector.Error as err:
+        rospy.logerr(f"MySQL error: {err}")
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+def save_amcl_to_mysql(pose_data):
+    try:
+        # 连接MySQL数据库
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        #  # 使用 REPLACE INTO 来插入或更新数据
+        sql = """
+        REPLACE INTO amcl_pose (id, position_x, position_y, position_z, orientation_x, orientation_y, orientation_z, orientation_w)
+        VALUES (1, %s, %s, %s, %s, %s, %s, %s)
+        """
+        val = (
+            pose_data['position']['x'], pose_data['position']['y'], pose_data['position']['z'],
+            pose_data['orientation']['x'], pose_data['orientation']['y'], pose_data['orientation']['z'], pose_data['orientation']['w']
+        )
         cursor.execute(sql, val)
         connection.commit()
 
@@ -49,29 +69,49 @@ def save_and_publish_data(data):
     try:
         # 处理接收到的数据
         pose_data = json.loads(data)
-        save_to_mysql(pose_data)
-
-        #print(f"data: {pose_data}")
+        if pose_data.get("type")=="odom_pose":
+            save_odom_to_mysql(pose_data)
+        if pose_data.get("type")=="amcl_pose":
+            save_amcl_to_mysql(pose_data)        
         
-        # 发布到 ROS 话题
-        pub = rospy.Publisher('/pose', Pose, queue_size=10)
-        rospy.init_node('pose_publisher_node', anonymous=True)
-        rate = rospy.Rate(10)  # 10 Hz
-
-        pose_msg = Pose()
-        pose_msg.position.x = pose_data.get('position', {}).get('x', 0)
-        pose_msg.position.y = pose_data.get('position', {}).get('y', 0)
-        pose_msg.position.z = pose_data.get('position', {}).get('z', 0)
-        pose_msg.orientation.x = pose_data.get('orientation', {}).get('x', 0)
-        pose_msg.orientation.y = pose_data.get('orientation', {}).get('y', 0)
-        pose_msg.orientation.z = pose_data.get('orientation', {}).get('z', 0)
-        pose_msg.orientation.w = pose_data.get('orientation', {}).get('w', 1)
-
-        #rospy.loginfo(f"Publishing pose: {pose_msg}")
-        pub.publish(pose_msg)
-        rate.sleep()
     except json.JSONDecodeError as e:
         print(f"JSON decode error: {e}")
+
+def get_coordinate():
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        cursor.execute("SELECT * FROM coordinate WHERE id = 1")
+        goal = cursor.fetchone()
+
+        if goal:
+            updated = goal[4]
+            if updated == 1 :
+                cursor.execute("UPDATE coordinate SET updated = 0 WHERE id = 1")
+                connection.commit()
+                cursor.close()
+                connection.close()
+                print("Update goal data.")
+                return goal
+            else:
+                cursor.close()
+                connection.close()
+                return None
+
+    except mysql.connector.Error as err:
+        print(f"Error: {err}")
+        return None 
+
+def send_goal_to_robot(data, client_socket):
+    try:
+        # 将坐标数据转换为 JSON 格式    
+        data["type"] = "goal"
+        json_data = json.dumps(data)
+        client_socket.sendall(json_data.encode('utf-8'))  # 使用已建立的连接发送数据
+        print(f"Sent data: {json_data}")
+    except Exception as e:
+        print(f"Error while sending data: {e}")
 
 def main():
     # 创建一个 socket 对象
@@ -100,8 +140,20 @@ def main():
             try:
                 # 接收数据
                 data = client_socket.recv(1024).decode('utf-8')
-                if not data:
+                if not data:  # 检查是否断开连接
+                    print(f"Connection closed by {addr}")
                     break
+                
+                # 获取数据库中的坐标信息
+                goal = get_coordinate()
+                if goal:
+                    # 将坐标信息发送给小车端
+                    goal_data = {
+                        "x": goal[1],
+                        "y": goal[2],
+                        "z": goal[3]
+                    }
+                    send_goal_to_robot(goal_data, client_socket)  # 使用已连接的 socket 发送数据
 
                 # 将接收到的数据添加到缓冲区
                 buffer += data
@@ -127,3 +179,4 @@ if __name__ == '__main__':
         main()
     except Exception as e:
         print(f"Unexpected error: {e}")
+

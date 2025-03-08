@@ -22,21 +22,38 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
 
 # 从 MySQL 数据库获取所有的位置信息和姿态数据
-def fetch_pose_data():
+def fetch_odom_pose_data():
     connection = get_db_connection()
     cursor = connection.cursor()
-    cursor.execute("SELECT * FROM pose_data ORDER BY id DESC LIMIT 1;")  # 获取所有数据，按 ID 升序排列
+    cursor.execute("SELECT * FROM odom_pose ORDER BY id DESC LIMIT 1;")  # 获取所有数据，按 ID 升序排列
     row = cursor.fetchone()
     cursor.close()
     connection.close()
     
     if row:
-        pose_data = {
+        odom_pose = {
             'position': {'x': row[1], 'y': row[2], 'z': row[3]},
             'orientation': {'x': row[4], 'y': row[5], 'z': row[6], 'w': row[7]},
             'timestamp': row[8]  # 添加时间戳
         }
-        return pose_data
+        return odom_pose
+    return None
+
+def fetch_amcl_pose_data():
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM amcl_pose ORDER BY id DESC LIMIT 1;")  # 获取所有数据，按 ID 升序排列
+    row = cursor.fetchone()
+    cursor.close()
+    connection.close()
+    
+    if row:
+        amcl_pose = {
+            'position': {'x': row[1], 'y': row[2], 'z': row[3]},
+            'orientation': {'x': row[4], 'y': row[5], 'z': row[6], 'w': row[7]},
+            'timestamp': row[8]  # 添加时间戳
+        }
+        return amcl_pose
     return None
 
 # 使用航位推算计算轨迹
@@ -50,24 +67,6 @@ def dead_reckoning(prev_pose, current_pose):
     new_theta = prev_pose['orientation']['z'] + delta_theta
 
     return new_x, new_y, new_theta
-
-# def dead_reckoning(prev_pose, velocity, angular_velocity, delta_t):
-#     # 提取前一时刻的位置和方向
-#     x_prev = prev_pose['position']['x']
-#     y_prev = prev_pose['position']['y']
-#     theta_prev = prev_pose['orientation']['theta']  # 小车的偏航角（方向）
-    
-#     # 计算当前时刻的距离增量（速度 * 时间）
-#     delta_distance = velocity * delta_t
-    
-#     # 计算新的位置
-#     new_x = x_prev + delta_distance * cos(theta_prev)
-#     new_y = y_prev + delta_distance * sin(theta_prev)
-    
-#     # 计算新的方向（角度）通过角速度积分
-#     new_theta = theta_prev + angular_velocity * delta_t
-
-#     return new_x, new_y, new_theta
 
 # 定义 JSON HTTP 响应
 def http_response(data):
@@ -101,6 +100,20 @@ def html_response():
         response += '404 Not Found: The requested file was not found on the server.'
     return response
 
+# 存储坐标数据到数据库
+def store_coordinates(x, y, z, isInitial):
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if isInitial:
+        query = "REPLACE INTO coordinate (id, x, y, z, updated, timestamp) VALUES (1, %s, %s, %s, 0, %s)"
+    else:
+        query = "REPLACE INTO coordinate (id, x, y, z, updated, timestamp) VALUES (1, %s, %s, %s, 1, %s)"
+    cursor.execute(query, (x, y, z, timestamp))
+    connection.commit()
+    cursor.close()
+    connection.close()
+
 # 设置 TCP HTTP 服务器
 def tcp_http_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -132,12 +145,12 @@ def tcp_http_server():
 
         elif 'GET /data' in request_str:
             # 获取MySQL 数据
-            current_pose = fetch_pose_data()
-
+            odom_pose = fetch_odom_pose_data()
+            amcl_pose = fetch_amcl_pose_data()
             # 如果有之前的位置信息，计算轨迹
-            if current_pose:
+            if odom_pose:
                 if prev_pose:
-                    new_x, new_y, new_theta = dead_reckoning(prev_pose, current_pose)
+                    new_x, new_y, new_theta = dead_reckoning(prev_pose, odom_pose)
                     trajectory = {
                         'x': new_x,
                         'y': new_y,
@@ -145,20 +158,49 @@ def tcp_http_server():
                     }
                 else:
                     trajectory = {
-                        'x': current_pose['position']['x'],
-                        'y': current_pose['position']['y'],
-                        'theta': current_pose['orientation']['z']
+                        'x': odom_pose['position']['x'],
+                        'y': odom_pose['position']['y'],
+                        'theta': odom_pose['orientation']['z']
                     }
 
-                prev_pose = current_pose  # 更新上一帧数据
+                prev_pose = odom_pose  # 更新上一帧数据
+                prev_amcl_pose = amcl_pose  # 更新上一帧数据
 
                 # 构造响应数据，包含所有 pose 数据和计算的轨迹
                 response_data = {
-                    'pose_data': current_pose,  # 原始的 pose 数据
-                    'trajectory': trajectory    # 计算的轨迹数据
+                    'odom_pose': odom_pose,  # 原始的 pose 数据
+                    'trajectory': trajectory,    # 计算的轨迹数据
+                    'amcl_pose': amcl_pose,  # 原始的 pose 数据
                 }
 
                 # 发送 HTTP 响应
+                response = http_response(json.dumps(response_data, cls=DateTimeEncoder))
+                client_socket.sendall(response.encode('utf-8'))
+
+        elif 'POST /coordinate' in request_str:
+            # 提取 JSON 数据
+            try:
+                start_index = request_str.index('\r\n\r\n') + 4
+                json_data = request_str[start_index:]
+                data = json.loads(json_data)
+            
+                # 打印接收到的数据以调试
+                print(f"Received coordinates: {data}")    
+
+                # 存储坐标数据
+                x = data['x']
+                y = data['y']
+                z = data['z']
+                isInitial = data['isInitial']
+                store_coordinates(x, y, z, isInitial)
+
+                # 发送响应
+                response_data = {'status': 'success'}
+                response = http_response(json.dumps(response_data, cls=DateTimeEncoder))
+                client_socket.sendall(response.encode('utf-8'))
+
+            except (ValueError, KeyError) as e:
+                response_data = {'status': 'error', 'message': 'Invalid JSON or missing data'}
                 response = http_response(json.dumps(response_data, cls=DateTimeEncoder))
                 client_socket.sendall(response.encode('utf-8'))
 
@@ -177,3 +219,4 @@ def tcp_http_server():
 
 if __name__ == '__main__':
     tcp_http_server()
+
