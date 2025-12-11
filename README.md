@@ -1,24 +1,24 @@
-# 项目介绍
+# Project Introduction
 
-该项目为广工电子信息工程课程设计内容，下面介绍文件的大概内容和作用，同时介绍程序启动的顺序。
+This project is part of the Electronic Information Engineering course design at Guangdong University of Technology. The following section introduces the general content and function of the files, as well as the program startup sequence.
 
-## 文件介绍
+## Document Introduction
 
-### 1. `socket_service.py`
-`socket_service.py`为云服务器端运行的程序，它包含了与小车或电脑的socket通信，负责接受信息并存入MySQL数据库。同时，它也有将MySQL数据库中的信息发送到小车端的接口。
+### 1. socket_service.py
+This is a program that runs on a cloud server. It includes socket communication with the vehicle or computer, and is responsible for receiving information and storing it in a MySQL database. It also has an interface for sending information from the MySQL database to the vehicle.
 
-### 2. `socket_local.py`
-`socket_local.py`为小车或电脑端本地的运行程序，使用socket接口与云服务器通信，具备话题信息的推送功能和信息接收功能。
+### 2. socket_local.py
+This is a local program that runs on a vehicle or computer, using a socket interface to communicate with a cloud server, and has the functions of pushing topic information and receiving information.
 
-### 3. `tcp_server.py`
-`tcp_server.py`为云服务器上的前后端程序，负责将MySQL中的位置信息推送到前端，进行轨迹图或数据的展示。同时，它也有前端输入坐标的功能。其中index.html为前端文件
+### 3. tcp_server.py
+This is a local program that runs on a vehicle or computer, using a socket interface to communicate with a cloud server, and has the functions of pushing topic information and receiving information.
 
-### 4. `web_code.txt`
-这个文件中是云服务器的相关信息，会随着该项目的使用，阶段性更新。
+### 4. web_code.txt
+This file contains information about the cloud server and will be updated periodically as the project is used.
 
-## 程序启动顺序
-1. 启动 `socket_service.py` 在云服务器上运行，处理与小车或电脑的通信，并存储信息到MySQL数据库。
-2. 启动 `socket_local.py` 在小车或电脑端运行，处理与云服务器的通信，发送话题信息和接收云端的数据。
-3. 启动 `tcp_server.py` 负责前端展示，推送MySQL中的位置数据到前端，并处理前端输入的坐标信息。
+## Program startup order
+1. Start `socket_service.py` to run on the cloud server, handling communication with the vehicle or computer and storing information in a MySQL database.
+2. Start `socket_local.py` to run on the vehicle or computer, handling communication with the cloud server, sending topic information and receiving data from the cloud.
+3. Start `tcp_server.py` to handle the front-end display, pushing location data from MySQL to the front-end, and processing coordinate information input from the front-end.
 
 **Licensed under the BSD 3-Clause License. See the LICENSE file for details.**
