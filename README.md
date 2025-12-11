@@ -20,3 +20,5 @@
 1. 启动 `socket_service.py` 在云服务器上运行，处理与小车或电脑的通信，并存储信息到MySQL数据库。
 2. 启动 `socket_local.py` 在小车或电脑端运行，处理与云服务器的通信，发送话题信息和接收云端的数据。
 3. 启动 `tcp_server.py` 负责前端展示，推送MySQL中的位置数据到前端，并处理前端输入的坐标信息。
+
+**Licensed under the BSD 3-Clause License. See the LICENSE file for details.**
